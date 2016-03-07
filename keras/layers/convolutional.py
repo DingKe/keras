@@ -79,7 +79,7 @@ class Convolution1D(Layer):
             raise Exception('Invalid border mode for Convolution1D:', border_mode)
         self.nb_filter = nb_filter
         self.filter_length = filter_length
-        self.init = initializations.get(init)
+        self.init = initializations.get(init, dim_ordering='th')
         self.activation = activations.get(activation)
         assert border_mode in {'valid', 'same'}, 'border_mode must be in {valid, same}'
         self.border_mode = border_mode
@@ -233,7 +233,7 @@ class Convolution2D(Layer):
         self.nb_filter = nb_filter
         self.nb_row = nb_row
         self.nb_col = nb_col
-        self.init = initializations.get(init)
+        self.init = initializations.get(init, dim_ordering=dim_ordering)
         self.activation = activations.get(activation)
         assert border_mode in {'valid', 'same'}, 'border_mode must be in {valid, same}'
         self.border_mode = border_mode
@@ -412,7 +412,7 @@ class Convolution3D(Layer):
         self.kernel_dim1 = kernel_dim1
         self.kernel_dim2 = kernel_dim2
         self.kernel_dim3 = kernel_dim3
-        self.init = initializations.get(init)
+        self.init = initializations.get(init, dim_ordering=dim_ordering)
         self.activation = activations.get(activation)
         assert border_mode in {'valid', 'same'}, 'border_mode must be in {valid, same}'
         self.border_mode = border_mode
@@ -1105,8 +1105,9 @@ class ZeroPadding1D(Layer):
     @property
     def output_shape(self):
         input_shape = self.input_shape
+        length = input_shape[1] + self.padding * 2 if input_shape[1] is not None else None
         return (input_shape[0],
-                input_shape[1] + self.padding * 2,
+                length,
                 input_shape[2])
 
     def get_output(self, train=False):
@@ -1148,14 +1149,18 @@ class ZeroPadding2D(Layer):
     def output_shape(self):
         input_shape = self.input_shape
         if self.dim_ordering == 'th':
+            width = input_shape[2] + 2 * self.padding[0] if input_shape[2] is not None else None
+            height = input_shape[3] + 2 * self.padding[1] if input_shape[3] is not None else None
             return (input_shape[0],
                     input_shape[1],
-                    input_shape[2] + 2 * self.padding[0],
-                    input_shape[3] + 2 * self.padding[1])
+                    width,
+                    height)
         elif self.dim_ordering == 'tf':
+            width = input_shape[1] + 2 * self.padding[0] if input_shape[1] is not None else None
+            height = input_shape[2] + 2 * self.padding[1] if input_shape[2] is not None else None
             return (input_shape[0],
-                    input_shape[1] + 2 * self.padding[0],
-                    input_shape[2] + 2 * self.padding[1],
+                    width,
+                    height,
                     input_shape[3])
         else:
             raise Exception('Invalid dim_ordering: ' + self.dim_ordering)
@@ -1205,16 +1210,22 @@ class ZeroPadding3D(Layer):
     def output_shape(self):
         input_shape = self.input_shape
         if self.dim_ordering == 'th':
+            dim1 = input_shape[2] + 2 * self.padding[0] if input_shape[2] is not None else None
+            dim2 = input_shape[3] + 2 * self.padding[1] if input_shape[3] is not None else None
+            dim3 = input_shape[4] + 2 * self.padding[2] if input_shape[4] is not None else None
             return (input_shape[0],
                     input_shape[1],
-                    input_shape[2] + 2 * self.padding[0],
-                    input_shape[3] + 2 * self.padding[1],
-                    input_shape[4] + 2 * self.padding[2])
+                    dim1,
+                    dim2,
+                    dim3)
         elif self.dim_ordering == 'tf':
+            dim1 = input_shape[1] + 2 * self.padding[0] if input_shape[1] is not None else None
+            dim2 = input_shape[2] + 2 * self.padding[1] if input_shape[2] is not None else None
+            dim3 = input_shape[3] + 2 * self.padding[2] if input_shape[3] is not None else None
             return (input_shape[0],
-                    input_shape[1] + 2 * self.padding[0],
-                    input_shape[2] + 2 * self.padding[1],
-                    input_shape[3] + 2 * self.padding[2],
+                    dim1,
+                    dim2,
+                    dim3,
                     input_shape[4])
         else:
             raise Exception('Invalid dim_ordering: ' + self.dim_ordering)
