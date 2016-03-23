@@ -101,13 +101,21 @@ class Sequential(Layer):
             if l.trainable:
                 constraints += l.get_params()[2]
         return constraints
+        
+    @property
+    def lr_multipliers(self):
+        lr_multipliers = []
+        for l in self.layers:
+            if l.trainable:
+                lr_multipliers += l.get_params()[3]
+        return lr_multipliers
 
     @property
     def updates(self):
         updates = []
         for l in self.layers:
             if l.trainable:
-                updates += l.get_params()[3]
+                updates += l.get_params()[-1]
         return updates
 
     @property
@@ -121,7 +129,7 @@ class Sequential(Layer):
         state_updates = []
         for l in self.layers:
             if getattr(l, 'stateful', False):
-                state_updates += l.get_params()[3]
+                state_updates += l.get_params()[-1]
         return state_updates
 
     def reset_states(self):
@@ -304,11 +312,19 @@ class Graph(Layer):
         return constraints
 
     @property
+    def lr_multipliers(self):
+        lr_multipliers = []
+        for l in self.nodes.values():
+            if l.trainable:
+                lr_multipliers += l.get_params()[3]
+        return lr_multipliers
+
+    @property
     def updates(self):
         updates = []
         for l in self.nodes.values():
             if l.trainable:
-                updates += l.get_params()[3]
+                updates += l.get_params()[-1]
         return updates
 
     @property
@@ -322,7 +338,7 @@ class Graph(Layer):
         state_updates = []
         for l in self.nodes.values():
             if getattr(l, 'stateful', False):
-                state_updates += l.get_params()[3]
+                state_updates += l.get_params()[-1]
         return state_updates
 
     def reset_states(self):
