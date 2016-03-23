@@ -349,6 +349,9 @@ class Layer(object):
             updates += self.updates
 
         return self.trainable_weights, regularizers, consts, updates
+        
+    def get_non_trainable_weights(self):
+        return self.non_trainable_weights
 
     def count_params(self):
         '''Return the total number of floats (or ints)

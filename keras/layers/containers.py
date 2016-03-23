@@ -78,6 +78,13 @@ class Sequential(Layer):
             if l.trainable:
                 weights += l.get_params()[0]
         return weights
+                
+    @property
+    def non_trainable_weights(self):
+        weights = []
+        for l in self.layers:
+            weights += l.get_non_trainable_weights()
+        return weights
 
     @property
     def regularizers(self):
@@ -273,6 +280,13 @@ class Graph(Layer):
                 weights += l.get_params()[0]
         return weights
 
+    @property
+    def non_trainable_weights(self):
+        weights = []
+        for l in self.nodes.values():
+            weights += l.get_non_trainable_weights()
+        return weights
+        
     @property
     def regularizers(self):
         regularizers = []
