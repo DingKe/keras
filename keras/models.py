@@ -11,6 +11,10 @@ from .legacy.models import Graph
 
 def model_from_config(config, custom_objects={}):
     from keras.utils.layer_utils import layer_from_config
+    if isinstance(config, list):
+        raise Exception('model_fom_config expects a dictionary.'
+                        'To load an old-style config use the appropiate'
+                        '`load_config` method on Sequential or Graph')
     return layer_from_config(config, custom_objects=custom_objects)
 
 
@@ -454,7 +458,7 @@ class Sequential(Model):
             A Numpy array of predictions.
         '''
         if self.model is None:
-            raise Exception('The model needs to be compiled before being used.')
+            self.build()
         return self.model.predict(x, batch_size=batch_size, verbose=verbose)
 
     def predict_on_batch(self, x):
@@ -536,8 +540,6 @@ class Sequential(Model):
         # Returns
             A Numpy array of probability predictions.
         '''
-        if self.model is None:
-            raise Exception('The model needs to be compiled before being used.')
         preds = self.predict(x, batch_size, verbose)
         if preds.min() < 0. or preds.max() > 1.:
             warnings.warn('Network returning invalid probability values. '
@@ -559,8 +561,6 @@ class Sequential(Model):
         # Returns
             A numpy array of class predictions.
         '''
-        if self.model is None:
-            raise Exception('The model needs to be compiled before being used.')
         proba = self.predict(x, batch_size=batch_size, verbose=verbose)
         if proba.shape[-1] > 1:
             return proba.argmax(axis=-1)
@@ -705,7 +705,7 @@ class Sequential(Model):
 
     def get_config(self):
         '''Returns the model configuration
-        as a Python dictionary.
+        as a Python list.
         '''
         # Layer config
         config = []
