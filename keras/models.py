@@ -12,9 +12,8 @@ from .legacy.models import Graph
 def model_from_config(config, custom_objects={}):
     from keras.utils.layer_utils import layer_from_config
     if isinstance(config, list):
-        raise Exception('model_fom_config expects a dictionary.'
-                        'To load an old-style config use the appropiate'
-                        '`load_config` method on Sequential or Graph')
+        raise Exception('`model_fom_config` expects a dictionary, not a list. '
+                        'Maybe you meant to use `Sequential.from_config(config)`?')
     return layer_from_config(config, custom_objects=custom_objects)
 
 
@@ -464,6 +463,8 @@ class Sequential(Model):
     def predict_on_batch(self, x):
         '''Returns predictions for a single batch of samples.
         '''
+        if self.model is None:
+            self.build()
         return self.model.predict_on_batch(x)
 
     def train_on_batch(self, x, y, class_weight=None,
@@ -484,6 +485,8 @@ class Sequential(Model):
             The attribute `model.metrics_names` will give you
             the display labels for the scalar outputs.
         '''
+        if self.model is None:
+            raise Exception('The model needs to be compiled before being used.')
         if 'accuracy' in kwargs:
             kwargs.pop('accuracy')
             warnings.warn('The "accuracy" argument is deprecated, '
@@ -514,6 +517,8 @@ class Sequential(Model):
             The attribute `model.metrics_names` will give you
             the display labels for the scalar outputs.
         '''
+        if self.model is None:
+            raise Exception('The model needs to be compiled before being used.')
         if 'accuracy' in kwargs:
             kwargs.pop('accuracy')
             warnings.warn('The "accuracy" argument is deprecated, '
@@ -612,7 +617,7 @@ class Sequential(Model):
                 while 1:
                     f = open(path)
                     for line in f:
-                        # create numpy arrays of input data
+                        # create Numpy arrays of input data
                         # and labels, from each line in the file
                         x, y = process_line(line)
                         yield (x, y)
@@ -699,7 +704,7 @@ class Sequential(Model):
             A Numpy array of predictions.
         '''
         if self.model is None:
-            raise Exception('The model needs to be compiled before being used.')
+            self.build()
         return self.model.predict_generator(generator, val_samples,
                                             max_q_size=max_q_size)
 
@@ -734,15 +739,12 @@ class Sequential(Model):
         return copy.deepcopy(config)
 
     @classmethod
-    def from_config(cls, config, custom_objects={}):
+    def from_config(cls, config, custom_objects={}, layer_cache={}):
         '''Supports legacy formats
         '''
         from keras.utils.layer_utils import layer_from_config
         from keras.layers import Merge
         
-        layer_config = config['layer_config']
-        assert type(layer_config) is list
-
         def normalize_legacy_config(conf):
             if 'class_name' not in conf:
                 class_name = conf['name']
@@ -755,9 +757,25 @@ class Sequential(Model):
                 return new_config
             return conf
 
+        # the model we will return
         model = cls()
 
+        def get_or_create_layer(layer_data):
+            if layer_data['class_name'] == 'Sequential':
+                return Sequential.from_config(layer_data['config'],
+                                              custom_objects=custom_objects,
+                                              layer_cache=layer_cache)
+            name = layer_data['config'].get('name')
+            if name in layer_cache:
+                return layer_cache[name]
+            layer = layer_from_config(layer_data)
+            layer_cache[name] = layer
+            return layer
+            
         # layers
+        layer_config = config['layer_config']
+        assert type(layer_config) is list
+        
         first_layer = layer_config[0]
         first_layer = normalize_legacy_config(first_layer)
         if first_layer['class_name'] == 'Merge':
@@ -770,12 +788,12 @@ class Sequential(Model):
             merge = Merge.from_config(first_layer_config)
             model.add(merge)
         else:
-            layer = layer_from_config(first_layer)
+            layer = get_or_create_layer(first_layer)
             model.add(layer)
 
         for conf in layer_config[1:]:
             conf = normalize_legacy_config(conf)
-            layer = layer_from_config(conf)
+            layer = get_or_create_layer(conf)
             model.add(layer)
             
         # compile from configuration
