@@ -739,7 +739,7 @@ class Sequential(Model):
         return copy.deepcopy(config)
 
     @classmethod
-    def from_config(cls, config, custom_objects={}, layer_cache={}):
+    def from_config(cls, config, custom_objects={}, layer_cache=None):
         '''Supports legacy formats
         '''
         from keras.utils.layer_utils import layer_from_config
@@ -775,6 +775,9 @@ class Sequential(Model):
         # layers
         layer_config = config['layer_config']
         assert type(layer_config) is list
+        
+        if not layer_cache:
+            layer_cache = {}
         
         first_layer = layer_config[0]
         first_layer = normalize_legacy_config(first_layer)
