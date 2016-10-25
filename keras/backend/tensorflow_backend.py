@@ -1192,21 +1192,17 @@ def rnn(step_function, inputs, initial_states,
         if go_backwards:
             inputs = tf.reverse(inputs, [True] + [False] * (ndim - 1))
 
-        states = initial_states
-        nb_states = len(states)
+        nb_states = len(initial_states)
         if nb_states == 0:
             # use dummy state, otherwise _dynamic_rnn_loop breaks
             state = inputs[:, 0, :]
-            state_size = state.get_shape()[-1]
+            initial_states = [state]
+            state_size = (int(state.get_shape()[-1]),)
         else:
-            state_size = int(states[0].get_shape()[-1])
-            if nb_states == 1:
-                state = states[0]
-            else:
-                state = tf.concat(1, states)
+            state_size = (int(state.get_shape()[-1]) for state in initial_states)
 
         if mask is not None:
-            if len(initial_states) == 0:
+            if nb_states == 0:
                 raise ValueError('No initial states provided! '
                                  'When using masking in an RNN, you should '
                                  'provide initial states '
@@ -1223,13 +1219,7 @@ def rnn(step_function, inputs, initial_states,
             mask = tf.transpose(mask, axes)
             inputs = tf.concat(2, [tf.cast(mask, inputs.dtype), inputs])
 
-            def _step(input, state):
-                if nb_states > 1:
-                    states = []
-                    for i in range(nb_states):
-                        states.append(state[:, i * state_size: (i + 1) * state_size])
-                else:
-                    states = [state]
+            def _step(input, states):
                 mask_t = tf.cast(input[:, 0], tf.bool)
                 input = input[:, 1:]
                 output, new_states = step_function(input, states + constants)
@@ -1237,57 +1227,37 @@ def rnn(step_function, inputs, initial_states,
                 output = tf.select(mask_t, output, states[0])
                 new_states = [tf.select(mask_t, new_states[i], states[i]) for i in range(len(states))]
 
-                if len(new_states) == 1:
-                    new_state = new_states[0]
-                else:
-                    new_state = tf.concat(1, new_states)
-
-                return output, new_state
+                return output, new_states
         else:
-            def _step(input, state):
-                if nb_states > 1:
-                    states = []
-                    for i in range(nb_states):
-                        states.append(state[:, i * state_size: (i + 1) * state_size])
-                elif nb_states == 1:
-                    states = [state]
-                else:
+            def _step(input, states):
+                if nb_states == 0:
                     states = []
                 output, new_states = step_function(input, states + constants)
 
-                if len(new_states) > 1:
-                    new_state = tf.concat(1, new_states)
-                elif len(new_states) == 1:
-                    new_state = new_states[0]
-                else:
+                if len(new_states) == 0:
                     # return dummy state, otherwise _dynamic_rnn_loop breaks
-                    new_state = state
-                return output, new_state
+                    new_states = [output]
 
-        _step.state_size = state_size * nb_states
+                return output, new_states
+
+        _step.state_size = state_size
         # recover output size by calling _step on the first input
         slice_begin = tf.pack([0] * ndim)
         slice_size = tf.pack([1] + [-1] * (ndim - 1))
         first_input = tf.slice(inputs, slice_begin, slice_size)
         first_input = tf.squeeze(first_input, [0])
-        _step.output_size = int(_step(first_input, state)[0].get_shape()[-1])
+        _step.output_size = int(_step(first_input, initial_states)[0].get_shape()[-1])
 
-        (outputs, final_state) = _dynamic_rnn_loop(
+        (outputs, final_states) = _dynamic_rnn_loop(
             _step,
             inputs,
-            state,
+            initial_states,
             parallel_iterations=32,
             swap_memory=True,
             sequence_length=None)
 
-        if nb_states > 1:
-            new_states = []
-            for i in range(nb_states):
-                new_states.append(final_state[:, i * state_size: (i + 1) * state_size])
-        elif nb_states == 1:
-            new_states = [final_state]
-        else:
-            new_states = []
+        if nb_states == 0:
+            final_states = []
 
         # all this circus is to recover the last vector in the sequence.
         slice_begin = tf.pack([tf.shape(outputs)[0] - 1] + [0] * (ndim - 1))
@@ -1297,7 +1267,7 @@ def rnn(step_function, inputs, initial_states,
 
     axes = [1, 0] + list(range(2, len(outputs.get_shape())))
     outputs = tf.transpose(outputs, axes)
-    return last_output, outputs, new_states
+    return last_output, outputs, final_states
 
 
 def _cond(condition, then_lambda, else_lambda):
